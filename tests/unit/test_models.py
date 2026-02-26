@@ -46,15 +46,26 @@ class TestWeatherData:
 
     def test_equality(self) -> None:
         """Test that two WeatherData with same values are equal."""
-        kwargs = {
-            "city": "Test",
-            "temp_f": 70.0,
-            "feels_like_f": 68.0,
-            "humidity": 50,
-            "description": "clear",
-            "wind_speed_mph": 5.0,
-            "high_f": 75.0,
-            "low_f": 59.0,
-            "icon": "01d",
-        }
-        assert WeatherData(**kwargs) == WeatherData(**kwargs)
+        first = WeatherData(
+            city="Test",
+            temp_f=70.0,
+            feels_like_f=68.0,
+            humidity=50,
+            description="clear",
+            wind_speed_mph=5.0,
+            high_f=75.0,
+            low_f=59.0,
+            icon="01d",
+        )
+        second = WeatherData(
+            city="Test",
+            temp_f=70.0,
+            feels_like_f=68.0,
+            humidity=50,
+            description="clear",
+            wind_speed_mph=5.0,
+            high_f=75.0,
+            low_f=59.0,
+            icon="01d",
+        )
+        assert first == second

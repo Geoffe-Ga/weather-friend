@@ -84,7 +84,8 @@ class TestWeatherCog:
         interaction.response = AsyncMock()
         interaction.followup = AsyncMock()
 
-        await cog.weather_command.callback(cog, interaction)
+        callback = cog.weather_command.callback
+        await callback(cog, interaction)  # type: ignore[arg-type]
 
         interaction.response.defer.assert_called_once()
         weather_svc.get_current_weather.assert_called_once()
