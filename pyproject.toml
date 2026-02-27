@@ -3,7 +3,7 @@
 [project]
 name = "weather-friend"
 version = "0.1.0"
-description = "A quality-controlled Python project"
+description = "Oracle of the Skies — a Discord bot for weather forecasts with outfit advice"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

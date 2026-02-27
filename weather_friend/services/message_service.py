@@ -8,6 +8,8 @@ from weather_friend.models.weather import WeatherData
 
 logger = logging.getLogger(__name__)
 
+CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+
 ORACLE_SYSTEM_PROMPT = (
     "You are the Oracle of the Skies \u2014 a friendly weather guide with a touch "
     "of mystical charm who posts daily forecasts in a Discord server.\n\n"
@@ -63,10 +65,11 @@ class MessageService:
             weather: Current weather data to transform into a message.
 
         Returns:
-            A formatted mystical forecast string.
+            A formatted forecast string with clothing suggestions.
 
         Raises:
             anthropic.APIError: If the Claude API request fails.
+            ValueError: If Claude returns an empty response.
         """
         user_prompt = USER_PROMPT_TEMPLATE.format(
             city=weather.city,
@@ -81,7 +84,7 @@ class MessageService:
 
         try:
             response = await self.client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model=CLAUDE_MODEL,
                 max_tokens=300,
                 system=ORACLE_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
@@ -89,5 +92,9 @@ class MessageService:
         except anthropic.APIError:
             logger.exception("Claude API request failed")
             raise
+
+        if not response.content:
+            msg = "Claude returned an empty response"
+            raise ValueError(msg)
 
         return response.content[0].text  # type: ignore[union-attr]

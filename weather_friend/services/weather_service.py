@@ -9,13 +9,13 @@ from weather_friend.models.weather import WeatherData
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
+_REQUEST_TIMEOUT = 10.0
 
 
 class WeatherService:
     """Service for retrieving current weather data from OpenWeatherMap.
 
     Attributes:
-        api_key: OpenWeatherMap API key.
         lat: Latitude for the weather query.
         lon: Longitude for the weather query.
         city: Display name for the city.
@@ -30,7 +30,7 @@ class WeatherService:
             lon: Longitude for the weather query.
             city: Display name for the city.
         """
-        self.api_key = api_key
+        self._api_key = api_key
         self.lat = lat
         self.lon = lon
         self.city = city
@@ -45,14 +45,18 @@ class WeatherService:
             httpx.HTTPStatusError: If the API returns an error status.
             httpx.RequestError: If the request fails due to network issues.
         """
+        # OWM requires the API key as a query param (not a header);
+        # this is an upstream API constraint. HTTPS is enforced by BASE_URL.
         params: dict[str, str | float] = {
             "lat": self.lat,
             "lon": self.lon,
-            "appid": self.api_key,
+            "appid": self._api_key,
             "units": "imperial",
         }
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(
+                timeout=_REQUEST_TIMEOUT,
+            ) as client:
                 response = await client.get(BASE_URL, params=params)
                 response.raise_for_status()
                 data = response.json()

@@ -6,6 +6,7 @@ import pytest
 
 from weather_friend.models.weather import WeatherData
 from weather_friend.services.message_service import (
+    CLAUDE_MODEL,
     ORACLE_SYSTEM_PROMPT,
     USER_PROMPT_TEMPLATE,
     MessageService,
@@ -72,7 +73,7 @@ class TestMessageService:
             await service.generate_forecast_message(_sample_weather())
 
         call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["model"] == "claude-sonnet-4-5-20250929"
+        assert call_kwargs["model"] == CLAUDE_MODEL
         assert call_kwargs["max_tokens"] == 300
         assert call_kwargs["system"] == ORACLE_SYSTEM_PROMPT
 
@@ -121,6 +122,25 @@ class TestMessageService:
             with pytest.raises(anthropic.APIError):
                 await service.generate_forecast_message(_sample_weather())
 
+    @pytest.mark.asyncio()
+    async def test_generate_forecast_empty_response(self) -> None:
+        """Test that an empty response raises ValueError."""
+        mock_response = MagicMock()
+        mock_response.content = []
+
+        mock_client = AsyncMock()
+        mock_client.messages.create.return_value = mock_response
+
+        with patch(
+            "weather_friend.services.message_service.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            service = MessageService(api_key="fake-key")
+            service.client = mock_client
+
+            with pytest.raises(ValueError, match="empty response"):
+                await service.generate_forecast_message(_sample_weather())
+
     def test_system_prompt_contains_personality(self) -> None:
         """Test that the system prompt defines the Oracle personality."""
         assert "Oracle of the Skies" in ORACLE_SYSTEM_PROMPT
@@ -133,3 +153,8 @@ class TestMessageService:
         assert "{temp_f" in USER_PROMPT_TEMPLATE
         assert "{humidity}" in USER_PROMPT_TEMPLATE
         assert "{wind_speed_mph" in USER_PROMPT_TEMPLATE
+
+    def test_model_constant_is_defined(self) -> None:
+        """Test that the Claude model ID is a module-level constant."""
+        assert CLAUDE_MODEL
+        assert "claude" in CLAUDE_MODEL

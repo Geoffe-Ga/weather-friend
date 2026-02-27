@@ -53,6 +53,8 @@ class WeatherCog(commands.Cog):
 
     async def cog_load(self) -> None:
         """Start the morning forecast loop when the cog loads."""
+        schedule_time = self._get_schedule_time()
+        self.morning_forecast.change_interval(time=schedule_time)
         self.morning_forecast.start()
 
     async def cog_unload(self) -> None:
@@ -71,7 +73,9 @@ class WeatherCog(commands.Cog):
         """
         await interaction.response.defer()
         weather = await self.weather_service.get_current_weather()
-        message = await self.message_service.generate_forecast_message(weather)
+        message = await self.message_service.generate_forecast_message(
+            weather,
+        )
         embed = _build_embed(message, weather)
         await interaction.followup.send(embed=embed)
 
@@ -88,31 +92,54 @@ class WeatherCog(commands.Cog):
             error: The error that occurred.
         """
         logger.exception("Weather command error: %s", error)
-        await interaction.followup.send(
-            "\U0001f32b\ufe0f *The Oracle's vision is clouded... "
-            "The weather spirits are not responding. "
-            "Try again shortly, seeker.*"
-        )
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "\U0001f32b\ufe0f The Oracle's vision is clouded. "
+                    "Try again shortly."
+                )
+            else:
+                await interaction.response.send_message(
+                    "\U0001f32b\ufe0f The Oracle's vision is clouded. "
+                    "Try again shortly.",
+                    ephemeral=True,
+                )
+        except discord.DiscordException:
+            logger.exception("Failed to send error response")
 
     @tasks.loop(hours=24)
     async def morning_forecast(self) -> None:
         """Post the daily morning forecast to the configured channel."""
         channel = self.bot.get_channel(self.settings.discord_channel_id)
-        if channel is None:
+        if not isinstance(channel, discord.abc.Messageable):
             logger.warning(
-                "Channel %s not found, skipping forecast",
+                "Channel %s not found or not messageable",
                 self.settings.discord_channel_id,
             )
             return
         weather = await self.weather_service.get_current_weather()
-        message = await self.message_service.generate_forecast_message(weather)
+        message = await self.message_service.generate_forecast_message(
+            weather,
+        )
         embed = _build_embed(message, weather)
-        await channel.send(embed=embed)  # type: ignore[union-attr]
+        await channel.send(embed=embed)
 
     @morning_forecast.before_loop
     async def before_morning_forecast(self) -> None:
         """Wait until the bot is ready before starting the loop."""
         await self.bot.wait_until_ready()
+
+    @morning_forecast.error
+    async def on_morning_forecast_error(self, error: BaseException) -> None:
+        """Log loop errors so the loop can retry next interval.
+
+        Args:
+            error: The exception that occurred during the loop.
+        """
+        logger.exception(
+            "Morning forecast loop error; will retry next interval: %s",
+            error,
+        )
 
     async def cog_command_error(self, ctx: commands.Context, error: Exception) -> None:
         """Log errors from cog commands without crashing.
@@ -170,7 +197,7 @@ def _build_embed(message: str, weather: WeatherData) -> discord.Embed:
         inline=True,
     )
     embed.set_footer(
-        text=f"Weather for {weather.city} \u2022 Blessed be your day \u2728"
+        text=(f"Weather for {weather.city}" " \u2022 Blessed be your day \u2728")
     )
 
     return embed

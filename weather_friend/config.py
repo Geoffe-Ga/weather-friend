@@ -30,6 +30,19 @@ class Settings:
     morning_hour: int = 7
     morning_minute: int = 0
 
+    def __post_init__(self) -> None:
+        """Validate field ranges after initialization.
+
+        Raises:
+            ValueError: If morning_hour or morning_minute is out of range.
+        """
+        if not 0 <= self.morning_hour <= 23:
+            msg = f"morning_hour must be 0-23, got {self.morning_hour}"
+            raise ValueError(msg)
+        if not 0 <= self.morning_minute <= 59:
+            msg = "morning_minute must be 0-59, " f"got {self.morning_minute}"
+            raise ValueError(msg)
+
     @classmethod
     def from_env(cls) -> "Settings":
         """Create Settings from environment variables.
@@ -39,7 +52,8 @@ class Settings:
 
         Raises:
             KeyError: If a required environment variable is missing.
-            ValueError: If DISCORD_CHANNEL_ID is not a valid integer.
+            ValueError: If DISCORD_CHANNEL_ID is not a valid integer,
+                or if morning_hour/morning_minute are out of range.
         """
         return cls(
             discord_token=os.environ["DISCORD_TOKEN"],

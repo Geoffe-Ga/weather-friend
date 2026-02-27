@@ -99,8 +99,10 @@ class TestWeatherCog:
     @pytest.mark.asyncio()
     async def test_morning_forecast_posts_to_channel(self) -> None:
         """Test scheduled forecast sends embed to the configured channel."""
-        mock_channel = AsyncMock()
-        cog, weather_svc, message_svc = _make_cog(channel=mock_channel)
+        mock_channel = AsyncMock(spec=discord.TextChannel)
+        cog, weather_svc, message_svc = _make_cog(
+            channel=mock_channel,
+        )
         weather_svc.get_current_weather.return_value = _sample_weather()
         message_svc.generate_forecast_message.return_value = (
             "Morning wisdom from the Oracle."
@@ -116,7 +118,9 @@ class TestWeatherCog:
         assert isinstance(call_kwargs["embed"], discord.Embed)
 
     @pytest.mark.asyncio()
-    async def test_morning_forecast_skips_when_channel_missing(self) -> None:
+    async def test_morning_forecast_skips_when_channel_missing(
+        self,
+    ) -> None:
         """Test scheduled forecast does nothing if channel is not found."""
         cog, weather_svc, _message_svc = _make_cog(channel=None)
 
@@ -125,11 +129,34 @@ class TestWeatherCog:
         weather_svc.get_current_weather.assert_not_called()
 
     @pytest.mark.asyncio()
-    async def test_cog_load_starts_loop(self) -> None:
-        """Test that cog_load starts the morning forecast loop."""
+    async def test_morning_forecast_skips_non_messageable_channel(
+        self,
+    ) -> None:
+        """Test forecast skips channel that is not Messageable."""
+        mock_channel = MagicMock(spec=discord.CategoryChannel)
+        cog, weather_svc, _message_svc = _make_cog(
+            channel=mock_channel,
+        )
+
+        await cog.morning_forecast.coro(cog)
+
+        weather_svc.get_current_weather.assert_not_called()
+
+    @pytest.mark.asyncio()
+    async def test_cog_load_starts_loop_with_schedule_time(
+        self,
+    ) -> None:
+        """Test that cog_load configures and starts the morning loop."""
         cog, _, _ = _make_cog()
-        with patch.object(cog.morning_forecast, "start") as mock_start:
+        with (
+            patch.object(cog.morning_forecast, "change_interval") as mock_change,
+            patch.object(cog.morning_forecast, "start") as mock_start,
+        ):
             await cog.cog_load()
+            mock_change.assert_called_once()
+            schedule_time = mock_change.call_args.kwargs["time"]
+            assert schedule_time.hour == 7
+            assert schedule_time.minute == 0
             mock_start.assert_called_once()
 
     @pytest.mark.asyncio()
@@ -147,6 +174,47 @@ class TestWeatherCog:
         assert schedule_time.hour == 7
         assert schedule_time.minute == 0
         assert schedule_time.tzinfo is not None
+
+    @pytest.mark.asyncio()
+    async def test_weather_error_after_defer(self) -> None:
+        """Test error handler sends followup when defer succeeded."""
+        cog, _, _ = _make_cog()
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.response = MagicMock()
+        interaction.response.is_done.return_value = True
+        interaction.followup = AsyncMock()
+
+        from discord import app_commands
+
+        error = app_commands.AppCommandError("test error")
+        await cog.weather_error(interaction, error)
+
+        interaction.followup.send.assert_called_once()
+
+    @pytest.mark.asyncio()
+    async def test_weather_error_before_defer(self) -> None:
+        """Test error handler sends initial response when defer failed."""
+        cog, _, _ = _make_cog()
+        interaction = AsyncMock(spec=discord.Interaction)
+        interaction.response = MagicMock()
+        interaction.response.is_done.return_value = False
+        interaction.response.send_message = AsyncMock()
+
+        from discord import app_commands
+
+        error = app_commands.AppCommandError("test error")
+        await cog.weather_error(interaction, error)
+
+        interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio()
+    async def test_morning_forecast_error_handler_logs(self) -> None:
+        """Test that the loop error handler logs and does not re-raise."""
+        cog, _, _ = _make_cog()
+        error = RuntimeError("transient network error")
+
+        # Should not raise — just log
+        await cog.on_morning_forecast_error(error)
 
 
 class TestBuildEmbed:

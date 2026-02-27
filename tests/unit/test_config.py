@@ -90,3 +90,47 @@ class TestSettings:
         assert settings.city_name == "New York"
         assert settings.morning_hour == 8
         assert settings.morning_minute == 30
+
+    def test_invalid_morning_hour_too_high(self) -> None:
+        """Test that morning_hour > 23 raises ValueError."""
+        with pytest.raises(ValueError, match="morning_hour"):
+            Settings(
+                discord_token="t",
+                discord_channel_id=1,
+                openweather_api_key="w",
+                anthropic_api_key="a",
+                morning_hour=25,
+            )
+
+    def test_invalid_morning_hour_negative(self) -> None:
+        """Test that negative morning_hour raises ValueError."""
+        with pytest.raises(ValueError, match="morning_hour"):
+            Settings(
+                discord_token="t",
+                discord_channel_id=1,
+                openweather_api_key="w",
+                anthropic_api_key="a",
+                morning_hour=-1,
+            )
+
+    def test_invalid_morning_minute_too_high(self) -> None:
+        """Test that morning_minute > 59 raises ValueError."""
+        with pytest.raises(ValueError, match="morning_minute"):
+            Settings(
+                discord_token="t",
+                discord_channel_id=1,
+                openweather_api_key="w",
+                anthropic_api_key="a",
+                morning_minute=60,
+            )
+
+    def test_invalid_morning_minute_negative(self) -> None:
+        """Test that negative morning_minute raises ValueError."""
+        with pytest.raises(ValueError, match="morning_minute"):
+            Settings(
+                discord_token="t",
+                discord_channel_id=1,
+                openweather_api_key="w",
+                anthropic_api_key="a",
+                morning_minute=-1,
+            )
