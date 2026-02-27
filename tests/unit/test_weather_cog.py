@@ -187,7 +187,7 @@ class TestWeatherCog:
         from discord import app_commands
 
         error = app_commands.AppCommandError("test error")
-        await cog.weather_error(interaction, error)  # type: ignore[call-arg,arg-type]
+        await cog.weather_error(interaction, error)  # type: ignore[misc,call-arg]
 
         interaction.followup.send.assert_called_once()
 
@@ -203,7 +203,7 @@ class TestWeatherCog:
         from discord import app_commands
 
         error = app_commands.AppCommandError("test error")
-        await cog.weather_error(interaction, error)  # type: ignore[call-arg,arg-type]
+        await cog.weather_error(interaction, error)  # type: ignore[misc,call-arg]
 
         interaction.response.send_message.assert_called_once()
 
