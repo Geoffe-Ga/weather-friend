@@ -124,8 +124,8 @@ class TestMessageService:
     def test_system_prompt_contains_personality(self) -> None:
         """Test that the system prompt defines the Oracle personality."""
         assert "Oracle of the Skies" in ORACLE_SYSTEM_PROMPT
-        assert "tarot reader" in ORACLE_SYSTEM_PROMPT
-        assert "outfit" in ORACLE_SYSTEM_PROMPT
+        assert "clothing" in ORACLE_SYSTEM_PROMPT
+        assert "ALL genders" in ORACLE_SYSTEM_PROMPT
 
     def test_user_prompt_template_has_placeholders(self) -> None:
         """Test that the user prompt template has all required placeholders."""

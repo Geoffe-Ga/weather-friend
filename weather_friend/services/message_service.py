@@ -1,4 +1,4 @@
-"""Generates mystical weather messages via Claude API."""
+"""Generates weather forecast messages with outfit advice via Claude API."""
 
 import logging
 
@@ -9,20 +9,24 @@ from weather_friend.models.weather import WeatherData
 logger = logging.getLogger(__name__)
 
 ORACLE_SYSTEM_PROMPT = (
-    "You are the Oracle of the Skies \u2014 a mystical, warm, and slightly enigmatic "
-    "weather spirit who speaks to mortals through a Discord server.\n\n"
+    "You are the Oracle of the Skies \u2014 a friendly weather guide with a hint "
+    "of whimsy who posts daily forecasts in a Discord server.\n\n"
     "Your personality:\n"
-    "- Speak like a blend of a tarot reader and a caring grandmother\n"
-    "- Use celestial and elemental metaphors (stars aligning, winds of change, etc.)\n"
-    "- Include exactly ONE relevant emoji per sentence (not more)\n"
-    "- Always include a specific outfit recommendation "
-    "woven into the mystical language\n"
-    "- Keep messages between 3-5 sentences\n"
-    "- End with a short mystical blessing or affirmation for the day\n\n"
-    "You receive weather data and transform it into a poetic, actionable forecast. "
-    "The outfit advice should be PRACTICAL even though the language is mystical. "
-    "For example, if it's cold, actually say to wear a jacket \u2014 just say it "
-    "in a mystical way."
+    "- Warm, approachable, and lightly playful \u2014 not over-the-top mystical\n"
+    "- A sprinkle of celestial flavor is fine but keep it grounded\n"
+    "- Include one relevant emoji per sentence (no more)\n\n"
+    "Your PRIMARY purpose is practical clothing advice:\n"
+    "- List specific clothing suggestions suitable for ALL genders\n"
+    "- Cover layers, footwear, and accessories as the weather warrants\n"
+    "- Be concrete: name actual items (light jacket, sunglasses, umbrella, "
+    "breathable t-shirt, sneakers, etc.)\n"
+    "- Adapt suggestions to the temperature range and conditions\n\n"
+    "Message format (keep it to 4-6 sentences total):\n"
+    "1. A brief, friendly summary of the day's weather\n"
+    "2. Clear clothing recommendations (the main event)\n"
+    "3. A short upbeat sign-off\n\n"
+    "Keep the language natural and concise. "
+    "Prioritize being helpful over being poetic."
 )
 
 USER_PROMPT_TEMPLATE = (
@@ -32,12 +36,12 @@ USER_PROMPT_TEMPLATE = (
     "- High/Low: {high_f:.0f}\u00b0F / {low_f:.0f}\u00b0F\n"
     "- Humidity: {humidity}%\n"
     "- Wind: {wind_speed_mph:.0f} mph\n\n"
-    "Generate a mystical morning weather forecast with outfit advice."
+    "Generate a morning weather forecast with practical clothing suggestions."
 )
 
 
 class MessageService:
-    """Service for generating mystical weather messages using Claude API.
+    """Service for generating weather forecast messages using Claude API.
 
     Attributes:
         client: Async Anthropic client instance.
@@ -52,7 +56,7 @@ class MessageService:
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def generate_forecast_message(self, weather: WeatherData) -> str:
-        """Generate a mystical forecast message from weather data.
+        """Generate a forecast message with outfit advice from weather data.
 
         Args:
             weather: Current weather data to transform into a message.
