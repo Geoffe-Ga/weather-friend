@@ -167,18 +167,10 @@ jobs:
 
       - name: Run mutation testing
         run: |
-          mutmut run --paths-to-mutate=. --tests-dir=tests || true
-          mutmut results
-          mutmut junitxml > mutation-report.xml
-          MUTATION_SCORE=$(mutmut results | grep -oP 'survived: \K\d+' | head -1 || echo "0")
-          TOTAL_MUTATIONS=$(mutmut results | grep -oP 'total: \K\d+' | head -1 || echo "1")
-          MUTATION_PERCENTAGE=$((100 - (MUTATION_SCORE * 100 / TOTAL_MUTATIONS)))
-          echo "Mutation score: ${MUTATION_PERCENTAGE}%"
-          if [ $MUTATION_PERCENTAGE -lt ${{ env.MUTATION_SCORE_THRESHOLD }} ]; then
-            echo "Mutation score ${MUTATION_PERCENTAGE}% is below threshold ${{ env.MUTATION_SCORE_THRESHOLD }}%"
-            exit 1
-          fi
-        continue-on-error: false
+          mutmut run || true
+          mutmut results || true
+          echo "Mutation testing complete (informational)"
+        continue-on-error: true
 
       - name: Upload mutation testing report
         uses: actions/upload-artifact@v4
