@@ -40,7 +40,7 @@ class Settings:
             msg = f"morning_hour must be 0-23, got {self.morning_hour}"
             raise ValueError(msg)
         if not 0 <= self.morning_minute <= 59:
-            msg = "morning_minute must be 0-59, " f"got {self.morning_minute}"
+            msg = f"morning_minute must be 0-59, got {self.morning_minute}"
             raise ValueError(msg)
 
     @classmethod

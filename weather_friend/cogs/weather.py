@@ -197,7 +197,7 @@ def _build_embed(message: str, weather: WeatherData) -> discord.Embed:
         inline=True,
     )
     embed.set_footer(
-        text=(f"Weather for {weather.city}" " \u2022 Blessed be your day \u2728")
+        text=(f"Weather for {weather.city} \u2022 Blessed be your day \u2728")
     )
 
     return embed
