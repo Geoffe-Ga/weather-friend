@@ -25,7 +25,6 @@ async def setup_bot(settings: Settings) -> commands.Bot:
         A configured Bot instance ready to be started.
     """
     intents = discord.Intents.default()
-    intents.message_content = True
     bot = commands.Bot(command_prefix="!", intents=intents)
 
     weather_service = WeatherService(

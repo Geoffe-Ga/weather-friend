@@ -52,8 +52,8 @@ class TestSetupBot:
         assert cog is not None
 
     @pytest.mark.asyncio()
-    async def test_setup_bot_enables_message_content_intent(self) -> None:
-        """Test that setup_bot enables the message_content intent."""
+    async def test_setup_bot_uses_default_intents(self) -> None:
+        """Test that setup_bot uses default intents without privileged ones."""
         with (
             patch("weather_friend.main.MessageService"),
             patch(
@@ -63,4 +63,5 @@ class TestSetupBot:
         ):
             bot = await setup_bot(_mock_settings())
 
-        assert bot.intents.message_content is True
+        assert bot.intents.guilds is True
+        assert bot.intents.message_content is False
