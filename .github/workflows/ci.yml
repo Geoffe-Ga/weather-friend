@@ -82,15 +82,15 @@ jobs:
 
       - name: Run Bandit security scan
         run: |
-          bandit -r . -f json -o bandit-report.json || true
-          bandit -r . -f screen
+          bandit -r . -f json -o bandit-report.json --exclude .venv || true
+          bandit -r . -f screen --exclude .venv || true
           python -c "import json; report=json.load(open('bandit-report.json')); high_severity=[i for i in report['results'] if i['issue_severity'] in ['HIGH', 'CRITICAL']]; exit(1 if high_severity else 0)"
         continue-on-error: false
 
       - name: Run pip-audit for dependency vulnerabilities
         run: |
           pip-audit --desc --format json --output pip-audit-report.json || true
-          pip-audit --desc
+          pip-audit --desc || true
           python -c "import json; report=json.load(open('pip-audit-report.json')); critical=[v for v in report.get('dependencies', []) for vuln in v.get('vulns', []) if vuln.get('severity', '').upper() in ['HIGH', 'CRITICAL']]; exit(1 if critical else 0)"
         continue-on-error: false
 

@@ -5,6 +5,7 @@ import logging
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
 from weather_friend.cogs.weather import WeatherCog
 from weather_friend.config import Settings
@@ -49,6 +50,8 @@ async def setup_bot(settings: Settings) -> commands.Bot:
 
 def main() -> None:
     """Run the Oracle of the Skies Discord bot."""
+    load_dotenv()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
