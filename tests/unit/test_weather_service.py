@@ -30,6 +30,23 @@ def _sample_api_response() -> dict:
     }
 
 
+def _mock_client(response: MagicMock) -> AsyncMock:
+    """Create an async-context-manager httpx client double."""
+    client = AsyncMock()
+    client.get.return_value = response
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    return client
+
+
+def _mock_response(payload: dict) -> MagicMock:
+    """Create a successful httpx response double with a JSON payload."""
+    response = MagicMock()
+    response.json.return_value = payload
+    response.raise_for_status = MagicMock()
+    return response
+
+
 class TestWeatherService:
     """Tests for the WeatherService class."""
 
@@ -166,3 +183,118 @@ class TestWeatherService:
             pytest.raises(httpx.RequestError),
         ):
             await service.get_current_weather()
+
+
+class TestGetWeatherForLocation:
+    """Tests for WeatherService.get_weather_for_location."""
+
+    @pytest.mark.asyncio()
+    async def test_success_uses_response_city_name(self) -> None:
+        """Test that a location fetch returns data named after the API city."""
+        service = _make_service()
+        payload = _sample_api_response()
+        payload["name"] = "Portland"
+        mock_client = _mock_client(_mock_response(payload))
+
+        with patch(
+            "weather_friend.services.weather_service.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            weather = await service.get_weather_for_location("Portland,OR")
+
+        assert weather.city == "Portland"
+        assert weather.temp_f == 68.0
+        assert weather.icon == "03d"
+
+    @pytest.mark.asyncio()
+    async def test_sends_location_query_params(self) -> None:
+        """Test that the API call queries by location string."""
+        service = _make_service()
+        mock_client = _mock_client(_mock_response(_sample_api_response()))
+
+        with patch(
+            "weather_friend.services.weather_service.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            await service.get_weather_for_location("Portland,OR")
+
+        params = mock_client.get.call_args.kwargs["params"]
+        assert params["q"] == "Portland,OR"
+        assert params["appid"] == "fake-key"
+        assert params["units"] == "imperial"
+        assert "lat" not in params
+        assert "lon" not in params
+
+    @pytest.mark.asyncio()
+    async def test_missing_name_falls_back_to_requested_location(self) -> None:
+        """Test that the requested location is used when the API omits name."""
+        service = _make_service()
+        mock_client = _mock_client(_mock_response(_sample_api_response()))
+
+        with patch(
+            "weather_friend.services.weather_service.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            weather = await service.get_weather_for_location("Portland,OR")
+
+        assert weather.city == "Portland,OR"
+
+    @pytest.mark.asyncio()
+    async def test_unknown_location_raises_value_error(self) -> None:
+        """Test that an upstream 404 becomes a ValueError."""
+        service = _make_service()
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Not Found",
+            request=MagicMock(),
+            response=MagicMock(status_code=404),
+        )
+        mock_client = _mock_client(mock_response)
+
+        with (
+            patch(
+                "weather_friend.services.weather_service.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(ValueError, match="unknown location: Atlantis"),
+        ):
+            await service.get_weather_for_location("Atlantis")
+
+    @pytest.mark.asyncio()
+    async def test_non_404_http_error_is_reraised(self) -> None:
+        """Test that non-404 HTTP errors propagate unchanged."""
+        service = _make_service()
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Server Error",
+            request=MagicMock(),
+            response=MagicMock(status_code=500),
+        )
+        mock_client = _mock_client(mock_response)
+
+        with (
+            patch(
+                "weather_friend.services.weather_service.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await service.get_weather_for_location("Portland,OR")
+
+    @pytest.mark.asyncio()
+    async def test_request_error_is_reraised(self) -> None:
+        """Test that network errors propagate unchanged."""
+        service = _make_service()
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.RequestError("Connection failed")
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "weather_friend.services.weather_service.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            pytest.raises(httpx.RequestError),
+        ):
+            await service.get_weather_for_location("Portland,OR")

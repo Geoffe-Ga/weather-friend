@@ -36,7 +36,7 @@ class WeatherService:
         self.city = city
 
     async def get_current_weather(self) -> WeatherData:
-        """Fetch current weather data from OpenWeatherMap.
+        """Fetch current weather data for the configured coordinates.
 
         Returns:
             A WeatherData instance with the current conditions.
@@ -45,34 +45,93 @@ class WeatherService:
             httpx.HTTPStatusError: If the API returns an error status.
             httpx.RequestError: If the request fails due to network issues.
         """
-        # OWM requires the API key as a query param (not a header);
-        # this is an upstream API constraint. HTTPS is enforced by BASE_URL.
         params: dict[str, str | float] = {
             "lat": self.lat,
             "lon": self.lon,
             "appid": self._api_key,
             "units": "imperial",
         }
+        data = await self._fetch(params)
+        return self._build_weather_data(data, city=self.city)
+
+    async def get_weather_for_location(self, location: str) -> WeatherData:
+        """Fetch current weather data for an arbitrary location string.
+
+        Args:
+            location: Free-form location query, e.g. "Portland,OR".
+
+        Returns:
+            A WeatherData instance with the current conditions. The city
+            name comes from the API response when available, otherwise
+            the requested location string.
+
+        Raises:
+            ValueError: If the API does not recognize the location.
+            httpx.HTTPStatusError: If the API returns any other error status.
+            httpx.RequestError: If the request fails due to network issues.
+        """
+        params: dict[str, str | float] = {
+            "q": location,
+            "appid": self._api_key,
+            "units": "imperial",
+        }
+        try:
+            data = await self._fetch(params)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == httpx.codes.NOT_FOUND:
+                msg = f"unknown location: {location}"
+                raise ValueError(msg) from exc
+            raise
+        city = str(data.get("name") or location)
+        return self._build_weather_data(data, city=city)
+
+    async def _fetch(self, params: dict[str, str | float]) -> dict:
+        """Call the OpenWeatherMap API and return the parsed JSON body.
+
+        Args:
+            params: Query parameters for the current-weather endpoint.
+
+        Returns:
+            The decoded JSON response.
+
+        Raises:
+            httpx.HTTPStatusError: If the API returns an error status.
+            httpx.RequestError: If the request fails due to network issues.
+        """
+        # OWM requires the API key as a query param (not a header);
+        # this is an upstream API constraint. HTTPS is enforced by BASE_URL.
         try:
             async with httpx.AsyncClient(
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
                 response = await client.get(BASE_URL, params=params)
                 response.raise_for_status()
-                data = response.json()
+                data: dict = response.json()
         except httpx.HTTPStatusError:
             logger.exception("Weather API HTTP error")
             raise
         except httpx.RequestError:
             logger.exception("Weather API request failed")
             raise
+        return data
 
+    @staticmethod
+    def _build_weather_data(data: dict, *, city: str) -> WeatherData:
+        """Map an OpenWeatherMap response body onto the WeatherData model.
+
+        Args:
+            data: Decoded current-weather JSON response.
+            city: Display name to attach to the result.
+
+        Returns:
+            A populated WeatherData instance.
+        """
         main = data["main"]
         weather = data["weather"][0]
         wind = data["wind"]
 
         return WeatherData(
-            city=self.city,
+            city=city,
             temp_f=float(main["temp"]),
             feels_like_f=float(main["feels_like"]),
             humidity=int(main["humidity"]),
