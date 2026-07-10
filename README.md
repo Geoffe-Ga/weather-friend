@@ -247,6 +247,49 @@ Or via the `Procfile` worker entry:
 honcho start worker
 ```
 
+## Running the standalone RubotPaul API
+
+After the RubotPaul cutover, the HTTP API is the entire service — no
+Discord bot process. It binds to `127.0.0.1` on `WEATHER_FRIEND_API_PORT`
+(default `8002`) and needs only `OPENWEATHER_API_KEY`, `ANTHROPIC_API_KEY`,
+and `RUBOTPAUL_SHARED_SECRET`:
+
+```bash
+python -m weather_friend.api
+```
+
+RubotPaul calls it locally on the VPS with an HMAC bearer token minted
+from the shared secret:
+
+```bash
+curl -H "Authorization: Bearer <caller_id>.<timestamp>.<hmac_hex>" \
+  "http://127.0.0.1:8002/api/v1/weather/data?location=San+Jose,CA"
+curl "http://127.0.0.1:8002/healthz"   # unauthenticated liveness probe
+```
+
+Sample `systemd --user` unit (`~/.config/systemd/user/weather-friend.service`;
+localhost-only binding, so no Tailscale-IP wiring is needed):
+
+```ini
+[Unit]
+Description=weather-friend API for RubotPaul
+After=network.target
+
+[Service]
+WorkingDirectory=%h/weather-friend
+EnvironmentFile=%h/weather-friend/.env
+ExecStart=%h/weather-friend/.venv/bin/python -m weather_friend.api
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now weather-friend.service
+```
+
 ---
 
 ## Development

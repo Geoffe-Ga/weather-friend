@@ -9,13 +9,17 @@ HMAC bearer token; ``/healthz`` is unauthenticated.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import signal
 from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
+from dotenv import load_dotenv
 
 from weather_friend.auth_middleware import aiohttp_auth_middleware
+from weather_friend.config import ApiSettings
 from weather_friend.services.message_service import MessageService
 from weather_friend.services.weather_service import WeatherService
 
@@ -214,3 +218,57 @@ async def start_api(
     await site.start()
     logger.info("weather-friend API listening on %s:%s", host, port)
     return runner
+
+
+async def serve(settings: ApiSettings, *, stop: asyncio.Event | None = None) -> None:
+    """Run the standalone API until stopped, then clean up the runner.
+
+    Builds the weather and message services from the given settings,
+    serves the API, and waits. SIGINT/SIGTERM set the stop event so a
+    ``systemctl --user stop`` shuts the server down gracefully.
+
+    Args:
+        settings: Environment-derived configuration for the API process.
+        stop: Optional externally-controlled shutdown event; a fresh
+            event driven only by signals is used when omitted.
+    """
+    stop_event = stop if stop is not None else asyncio.Event()
+    weather_service = WeatherService(
+        api_key=settings.openweather_api_key,
+        lat=settings.latitude,
+        lon=settings.longitude,
+        city=settings.city_name,
+    )
+    message_service = MessageService(api_key=settings.anthropic_api_key)
+    runner = await start_api(
+        weather_service, message_service, settings.host, settings.port
+    )
+    loop = asyncio.get_running_loop()
+    handled_signals = (signal.SIGINT, signal.SIGTERM)
+    for sig in handled_signals:
+        loop.add_signal_handler(sig, stop_event.set)
+    try:
+        await stop_event.wait()
+    finally:
+        for sig in handled_signals:
+            loop.remove_signal_handler(sig)
+        await runner.cleanup()
+        logger.info("weather-friend API shut down cleanly")
+
+
+def main() -> None:
+    """Run the standalone weather-friend API (``python -m weather_friend.api``).
+
+    This is the entire service after the RubotPaul cutover: it loads
+    ``.env``, validates configuration, and serves until signalled.
+    """
+    load_dotenv()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    asyncio.run(serve(ApiSettings.from_env()))
+
+
+if __name__ == "__main__":
+    main()
