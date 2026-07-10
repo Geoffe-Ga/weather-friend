@@ -2,10 +2,10 @@
 
 import json
 import time
-from typing import Any
 
 import pytest
 from aiohttp import web
+from aiohttp.test_utils import make_mocked_request
 
 from weather_friend.auth_middleware import (
     MAX_TOKEN_AGE_SECONDS,
@@ -168,25 +168,37 @@ class TestAuthError:
         assert error.status == 403
 
 
-class _FakeRequest:
-    """Minimal stand-in for aiohttp.web.Request in middleware tests."""
+def _make_request(headers: dict[str, str]) -> web.Request:
+    """Build a real aiohttp request for middleware tests.
 
-    def __init__(self, headers: dict[str, str]) -> None:
-        self.headers = headers
-        self._store: dict[str, Any] = {}
+    Args:
+        headers: HTTP headers to attach to the request.
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        self._store[key] = value
+    Returns:
+        A mocked-transport ``web.Request`` suitable for calling handlers.
+    """
+    return make_mocked_request("GET", "/", headers=headers)
 
-    def __getitem__(self, key: str) -> Any:
-        return self._store[key]
+
+def _body_text(response: web.StreamResponse) -> str:
+    """Narrow a middleware response to ``web.Response`` and return its body.
+
+    Args:
+        response: The response returned by the middleware under test.
+
+    Returns:
+        The response body decoded as text.
+    """
+    assert isinstance(response, web.Response)
+    assert response.text is not None
+    return response.text
 
 
 class TestAiohttpAuthMiddleware:
     """Tests for the aiohttp middleware factory."""
 
     @staticmethod
-    async def _handler(request: _FakeRequest) -> web.Response:
+    async def _handler(request: web.Request) -> web.StreamResponse:
         """Echo the authenticated caller_id back in the response body."""
         return web.Response(text=f"hello {request['caller_id']}")
 
@@ -194,30 +206,30 @@ class TestAiohttpAuthMiddleware:
     async def test_valid_token_reaches_handler(self, shared_secret: str) -> None:
         """Test that a valid bearer token passes through to the handler."""
         middleware = await aiohttp_auth_middleware(None, self._handler)
-        request = _FakeRequest({"Authorization": f"Bearer {mint_token(CALLER_ID)}"})
+        request = _make_request({"Authorization": f"Bearer {mint_token(CALLER_ID)}"})
 
         response = await middleware(request)
 
         assert response.status == 200
-        assert response.text == f"hello {CALLER_ID}"
+        assert _body_text(response) == f"hello {CALLER_ID}"
         assert request["caller_id"] == CALLER_ID
 
     @pytest.mark.asyncio()
     async def test_missing_header_returns_401(self, shared_secret: str) -> None:
         """Test that a request without an Authorization header gets 401."""
         middleware = await aiohttp_auth_middleware(None, self._handler)
-        request = _FakeRequest({})
+        request = _make_request({})
 
         response = await middleware(request)
 
         assert response.status == 401
-        assert json.loads(response.text) == {"error": "missing bearer token"}
+        assert json.loads(_body_text(response)) == {"error": "missing bearer token"}
 
     @pytest.mark.asyncio()
     async def test_non_bearer_header_returns_401(self, shared_secret: str) -> None:
         """Test that a non-Bearer Authorization scheme gets 401."""
         middleware = await aiohttp_auth_middleware(None, self._handler)
-        request = _FakeRequest({"Authorization": "Basic dXNlcjpwYXNz"})
+        request = _make_request({"Authorization": "Basic dXNlcjpwYXNz"})
 
         response = await middleware(request)
 
@@ -229,21 +241,21 @@ class TestAiohttpAuthMiddleware:
     ) -> None:
         """Test that an invalid token yields 401 with the failure reason."""
         middleware = await aiohttp_auth_middleware(None, self._handler)
-        request = _FakeRequest({"Authorization": "Bearer garbage"})
+        request = _make_request({"Authorization": "Bearer garbage"})
 
         response = await middleware(request)
 
         assert response.status == 401
-        assert json.loads(response.text) == {"error": "malformed token"}
+        assert json.loads(_body_text(response)) == {"error": "malformed token"}
 
     @pytest.mark.asyncio()
     async def test_expired_token_returns_401(self, shared_secret: str) -> None:
         """Test that an expired token is rejected with 401 at the HTTP layer."""
         stale = mint_token(CALLER_ID, now=time.time() - MAX_TOKEN_AGE_SECONDS - 60)
         middleware = await aiohttp_auth_middleware(None, self._handler)
-        request = _FakeRequest({"Authorization": f"Bearer {stale}"})
+        request = _make_request({"Authorization": f"Bearer {stale}"})
 
         response = await middleware(request)
 
         assert response.status == 401
-        assert json.loads(response.text) == {"error": "token expired"}
+        assert json.loads(_body_text(response)) == {"error": "token expired"}
