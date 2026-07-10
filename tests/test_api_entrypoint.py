@@ -5,7 +5,7 @@ import os
 import signal
 import socket
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -166,13 +166,7 @@ class TestServe:
         ) as start_mock:
             await serve(settings, stop=stop)
 
-        start_mock.assert_awaited_once()
-        _, kwargs = start_mock.await_args
-        positional = start_mock.await_args.args
-        assert positional[2:] == ("127.0.0.1", 8002) or (
-            kwargs.get("host"),
-            kwargs.get("port"),
-        ) == ("127.0.0.1", 8002)
+        start_mock.assert_awaited_once_with(ANY, ANY, "127.0.0.1", 8002)
         runner.cleanup.assert_awaited_once()
 
 
