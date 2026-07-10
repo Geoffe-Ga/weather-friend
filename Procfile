@@ -1,1 +1,1 @@
-worker: python -m weather_friend.main
+web: python -m weather_friend.api
