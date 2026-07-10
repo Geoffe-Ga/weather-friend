@@ -2,7 +2,6 @@
 
 import pytest
 
-from weather_friend.config import Settings
 from weather_friend.models.weather import WeatherData
 
 
@@ -19,15 +18,4 @@ def sample_weather() -> WeatherData:
         high_f=74.0,
         low_f=58.0,
         icon="03d",
-    )
-
-
-@pytest.fixture()
-def mock_settings() -> Settings:
-    """Create a Settings instance with fake credentials for testing."""
-    return Settings(
-        discord_token="fake-discord-token",
-        discord_channel_id=123456789,
-        openweather_api_key="fake-weather-key",
-        anthropic_api_key="fake-anthropic-key",
     )
